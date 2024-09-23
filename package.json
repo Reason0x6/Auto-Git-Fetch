@@ -2,7 +2,7 @@
   "name": "scriptrunner",
   "displayName": "ScriptRunner",
   "description": "Run a git fetch on a selected folder every X seconds from vs code",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "R3ason6",
   "repository": "https://github.com/Reason0x6/Auto-Git-Fetch",
   "engines": {
