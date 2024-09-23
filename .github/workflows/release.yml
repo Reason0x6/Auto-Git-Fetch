@@ -30,6 +30,8 @@ jobs:
           TAG_NAME="v$(date +'%Y%m%d%H%M%S')"  # Create a tag based on the current date and time
           git tag $TAG_NAME
           git push origin $TAG_NAME
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
