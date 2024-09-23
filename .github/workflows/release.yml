@@ -24,9 +24,17 @@ jobs:
       - name: Package the extension
         run: npx vsce package
 
+      - name: Create a tag
+        id: create_tag
+        run: |
+          TAG_NAME="v$(date +'%Y%m%d%H%M%S')"  # Create a tag based on the current date and time
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         with:
+          tag: ${{ steps.create_tag.outputs.TAG_NAME }}  # Use the tag created earlier
           files: '*.vsix'  # This assumes the output file is a .vsix file
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
