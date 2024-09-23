@@ -36,7 +36,7 @@ jobs:
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         with:
-          tag: ${{ steps.create_tag.outputs.TAG_NAME }}  # Use the tag created earlier
+          tag_name: $TAG_NAME  # Use the tag created earlier
           files: '*.vsix'  # This assumes the output file is a .vsix file
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
