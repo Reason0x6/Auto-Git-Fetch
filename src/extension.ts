@@ -216,6 +216,24 @@ class AutoGitFetchItem extends vscode.TreeItem {
         tooltip: label,
       };
     }
+
+    // Add icons based on the label
+    this.iconPath = this.getIconForLabel(label);
+  }
+
+  // Function to return appropriate icon for each label
+  private getIconForLabel(
+    label: string
+  ): { light: string; dark: string } | vscode.ThemeIcon {
+    if (label.includes("Toggle Git Fetch")) {
+      return new vscode.ThemeIcon("sync"); // Built-in icon for toggle
+    } else if (label.includes("Interval")) {
+      return new vscode.ThemeIcon("clock"); // Built-in icon for interval
+    } else if (label.includes("Folder Path")) {
+      return new vscode.ThemeIcon("file-directory"); // Built-in icon for folder
+    } else {
+      return new vscode.ThemeIcon("gear"); // Default icon (settings)
+    }
   }
 }
 
