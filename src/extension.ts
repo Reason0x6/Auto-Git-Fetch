@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Function to run git fetch in the selected folder
     const runGitFetch = () => {
         const folderPath = getFolderPath();
-        
+
         if (!folderPath) {
             vscode.window.showErrorMessage('No folder path set. Please configure the folder path in settings.');
             return;
@@ -41,8 +41,38 @@ export function activate(context: vscode.ExtensionContext) {
     runGitFetch();
 
     // Run git fetch based on user-defined interval
-    const intervalInSeconds = getInterval();
-    const intervalId = setInterval(runGitFetch, intervalInSeconds * 1000); // Convert seconds to milliseconds
+    let intervalInSeconds = getInterval();
+    let intervalId = setInterval(runGitFetch, intervalInSeconds * 1000); // Convert seconds to milliseconds
+
+    // Toggle Git Fetch command
+    let isAutoFetchEnabled = vscode.workspace.getConfiguration().get<boolean>('autoGitFetch.enabled') || false;
+
+    const toggleGitFetch = vscode.commands.registerCommand('extension.toggleGitFetch', () => {
+        isAutoFetchEnabled = !isAutoFetchEnabled;
+        vscode.workspace.getConfiguration().update('autoGitFetch.enabled', isAutoFetchEnabled, vscode.ConfigurationTarget.Global);
+
+        if (isAutoFetchEnabled) {
+            intervalInSeconds = getInterval();
+            intervalId = setInterval(runGitFetch, intervalInSeconds * 1000); // Restart interval
+            vscode.window.showInformationMessage('Auto Git Fetch is now enabled.');
+        } else {
+            clearInterval(intervalId); // Stop auto-fetch when disabled
+            vscode.window.showInformationMessage('Auto Git Fetch is now disabled.');
+        }
+    });
+
+    // Show current settings command
+    const showSettings = vscode.commands.registerCommand('extension.showSettings', () => {
+        const interval = getInterval();
+        const folderPath = getFolderPath();
+        
+        vscode.window.showInformationMessage(
+            `Current Settings:\nInterval: ${interval} seconds\nFolder Path: ${folderPath || 'Not set'}`
+        );
+    });
+
+    // Register the view provider for the side panel
+    vscode.window.registerTreeDataProvider('autoGitFetchView', new AutoGitFetchViewProvider());
 
     // Clean up the interval when the extension is deactivated
     context.subscriptions.push({
@@ -50,6 +80,27 @@ export function activate(context: vscode.ExtensionContext) {
             clearInterval(intervalId);
         }
     });
+
+    context.subscriptions.push(toggleGitFetch, showSettings);
+}
+
+// Tree Data Provider for the side menu view
+class AutoGitFetchViewProvider implements vscode.TreeDataProvider<string> {
+    getTreeItem(element: string): vscode.TreeItem {
+        return {
+            label: element,
+            collapsibleState: vscode.TreeItemCollapsibleState.None
+        };
+    }
+
+    getChildren(): string[] {
+        return [
+            'Toggle Git Fetch',
+            `Auto Git Fetch Enabled: ${vscode.workspace.getConfiguration().get<boolean>('autoGitFetch.enabled')}`,
+            `Interval: ${vscode.workspace.getConfiguration().get<number>('autoGitFetch.interval')} seconds`,
+            `Folder Path: ${vscode.workspace.getConfiguration().get<string>('autoGitFetch.folderPath') || 'Not set'}`
+        ];
+    }
 }
 
 export function deactivate() {

@@ -16,29 +16,68 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "autoGitFetch",
+          "title": "Auto Git Fetch",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "autoGitFetch": [
+        {
+          "id": "autoGitFetchView",
+          "name": "Settings"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "extension.toggleGitFetch",
+        "title": "Toggle Git Fetch"
+      },
+      {
+        "command": "extension.showSettings",
+        "title": "Show Settings"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "extension.toggleGitFetch",
+          "when": "view == autoGitFetchView",
+          "group": "navigation"
+        },
+        {
+          "command": "extension.showSettings",
+          "when": "view == autoGitFetchView",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
-      "title": "Auto Git Fetch Settings",
+      "title": "Auto Git Fetch",
       "properties": {
-        "autoGitFetch.folderPath": {
-          "type": "string",
-          "default": "",
-          "description": "The folder path where git fetch will be executed.",
-          "scope": "window"
+        "autoGitFetch.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable auto git fetch."
         },
         "autoGitFetch.interval": {
           "type": "number",
           "default": 600,
           "description": "Interval in seconds for running git fetch."
+        },
+        "autoGitFetch.folderPath": {
+          "type": "string",
+          "default": "",
+          "description": "The folder path where git fetch should be executed."
         }
       }
-    },
-    "commands": [
-      {
-        "command": "extension.runGitFetchNow",
-        "title": "Run Git Fetch Now"
-      }
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -49,7 +88,8 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "build": "vsce package"
   },
   "devDependencies": {
     "@types/vscode": "^1.93.0",
