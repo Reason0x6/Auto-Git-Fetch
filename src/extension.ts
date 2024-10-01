@@ -2,143 +2,119 @@ import * as vscode from "vscode";
 import { exec } from "child_process";
 
 let intervalId: NodeJS.Timeout | undefined;
-let autoGitFetchViewProvider: AutoGitFetchViewProvider;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Extension "Auto Git Fetch" is now active!');
 
-  autoGitFetchViewProvider = new AutoGitFetchViewProvider();
+  const autoGitFetchViewProvider = new AutoGitFetchViewProvider();
 
-  // Register the view provider for the side panel
   vscode.window.registerTreeDataProvider(
     "autoGitFetchView",
     autoGitFetchViewProvider
   );
 
-  // Command to toggle auto-fetch
+  // Set up event listener for configuration changes
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("autoGitFetch.enabled")) {
+        autoGitFetchViewProvider.updateTreeItems(); // Update the view when enabled state changes
+      }
+    })
+  );
+
+  // Commands
   const toggleGitFetch = vscode.commands.registerCommand(
     "extension.toggleGitFetch",
     () => {
-      const isEnabled = vscode.workspace
-        .getConfiguration()
-        .get<boolean>("autoGitFetch.enabled");
+      const currentEnabled = autoGitFetchViewProvider.getEnabled();
       vscode.workspace
         .getConfiguration()
         .update(
           "autoGitFetch.enabled",
-          !isEnabled,
+          !currentEnabled,
           vscode.ConfigurationTarget.Global
         );
-      autoGitFetchViewProvider.refresh(); // Refresh the view
+      autoGitFetchViewProvider.updateTreeItems();
       vscode.window.showInformationMessage(
-        `Auto Git Fetch is now ${
-          vscode.workspace
-            .getConfiguration()
-            .get<boolean>("autoGitFetch.enabled")
-            ? "enabled"
-            : "disabled"
-        }.`
+        `Auto Git Fetch is now ${!currentEnabled ? "enabled" : "disabled"}.`
       );
-    }
-  );
 
-  // Command to edit the interval setting
-  const editInterval = vscode.commands.registerCommand(
-    "extension.editInterval",
-    async () => {
-      const input = await vscode.window.showInputBox({
-        placeHolder: "Enter the interval in seconds",
-        value: getInterval().toString(),
-      });
-
-      if (input) {
-        const newInterval = parseInt(input, 10);
-        if (!isNaN(newInterval)) {
-          vscode.workspace
-            .getConfiguration()
-            .update(
-              "autoGitFetch.interval",
-              newInterval,
-              vscode.ConfigurationTarget.Global
-            );
-          if (intervalId) {
-            clearInterval(intervalId);
-          }
-          intervalId = setInterval(runGitFetch, newInterval * 1000);
-          vscode.window.showInformationMessage(
-            `Interval updated to ${newInterval} seconds.`
-          );
-          autoGitFetchViewProvider.refresh(); // Refresh the view
-        } else {
-          vscode.window.showErrorMessage("Invalid interval entered.");
-        }
+      // Start/stop the interval based on the new enabled state
+      if (currentEnabled) {
+        clearInterval(intervalId!);
+      } else {
+        const newInterval = autoGitFetchViewProvider.getInterval();
+        intervalId = setInterval(runGitFetch, newInterval * 1000);
       }
     }
   );
 
-  // Command to edit the folder path setting
+  const editInterval = vscode.commands.registerCommand(
+    "extension.editInterval",
+    async () => {
+      const newInterval = await vscode.window.showInputBox({
+        prompt: "Enter the interval in seconds",
+        value: String(autoGitFetchViewProvider.getInterval()),
+      });
+      if (newInterval) {
+        vscode.workspace
+          .getConfiguration()
+          .update(
+            "autoGitFetch.interval",
+            parseInt(newInterval),
+            vscode.ConfigurationTarget.Global
+          );
+        autoGitFetchViewProvider.updateTreeItems();
+        vscode.window.showInformationMessage(
+          `Interval set to ${newInterval} seconds.`
+        );
+      }
+    }
+  );
+
   const editFolderPath = vscode.commands.registerCommand(
     "extension.editFolderPath",
     async () => {
-      const input = await vscode.window.showInputBox({
-        placeHolder: "Enter the folder path",
-        value: getFolderPath(),
+      const newFolderPath = await vscode.window.showInputBox({
+        prompt: "Enter the folder path to run git fetch",
+        value: autoGitFetchViewProvider.getFolderPath() || "",
       });
-
-      if (input) {
+      if (newFolderPath) {
         vscode.workspace
           .getConfiguration()
           .update(
             "autoGitFetch.folderPath",
-            input,
+            newFolderPath,
             vscode.ConfigurationTarget.Global
           );
+        autoGitFetchViewProvider.updateTreeItems();
         vscode.window.showInformationMessage(
-          `Folder path updated to ${input}.`
+          `Folder path set to ${newFolderPath}.`
         );
-        autoGitFetchViewProvider.refresh(); // Refresh the view
       }
     }
   );
 
-  // Run git fetch on startup
-  runGitFetch();
-
-  // Run git fetch based on user-defined interval
-  const intervalInSeconds = getInterval();
-  intervalId = setInterval(runGitFetch, intervalInSeconds * 1000); // Convert seconds to milliseconds
-
-  // Clean up the interval when the extension is deactivated
-  context.subscriptions.push({
-    dispose() {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    },
-  });
-
   context.subscriptions.push(toggleGitFetch, editInterval, editFolderPath);
-  autoGitFetchViewProvider.refresh();
+
+  // Initial run and interval setup
+  if (autoGitFetchViewProvider.getEnabled()) {
+    runGitFetch();
+    const intervalInSeconds = autoGitFetchViewProvider.getInterval();
+    intervalId = setInterval(runGitFetch, intervalInSeconds * 1000);
+  }
 }
 
-// Get folder path from settings
-const getFolderPath = () => {
-  return vscode.workspace
+export function deactivate() {
+  if (intervalId) {
+    clearInterval(intervalId);
+  }
+}
+
+const runGitFetch = () => {
+  const folderPath = vscode.workspace
     .getConfiguration()
     .get<string>("autoGitFetch.folderPath");
-};
-
-// Get interval from settings
-const getInterval = () => {
-  return (
-    vscode.workspace.getConfiguration().get<number>("autoGitFetch.interval") ||
-    600
-  ); // Default to 600 seconds
-};
-
-// Function to run git fetch in the selected folder
-const runGitFetch = () => {
-  const folderPath = getFolderPath();
 
   if (!folderPath) {
     vscode.window.showErrorMessage(
@@ -164,7 +140,6 @@ const runGitFetch = () => {
   });
 };
 
-// Tree Data Provider for the side menu view
 class AutoGitFetchViewProvider
   implements vscode.TreeDataProvider<AutoGitFetchItem>
 {
@@ -175,8 +150,36 @@ class AutoGitFetchViewProvider
     AutoGitFetchItem | undefined | null | void
   > = this._onDidChangeTreeData.event;
 
-  refresh(): void {
-    this._onDidChangeTreeData.fire(); // Trigger refresh
+  private treeItems: AutoGitFetchItem[] = [];
+
+  constructor() {
+    this.updateTreeItems();
+  }
+
+  // Function to update all TreeItem values
+  updateTreeItems(): void {
+    const enabled = this.getEnabled();
+    const interval = this.getInterval();
+    const folderPath = this.getFolderPath();
+
+    this.treeItems = [
+      new AutoGitFetchItem("Toggle Auto Git Fetch", "extension.toggleGitFetch"),
+      new AutoGitFetchItem(
+        `Auto Git Fetch Enabled: ${enabled ? "Enabled" : "Disabled"}`,
+        ""
+      ),
+      new AutoGitFetchItem(
+        `Interval: ${interval} seconds`,
+        "extension.editInterval"
+      ),
+      new AutoGitFetchItem(
+        `Folder Path: ${folderPath || "Not set"}`,
+        "extension.editFolderPath"
+      ),
+    ];
+
+    // Trigger a refresh of the tree view
+    this._onDidChangeTreeData.fire(); // Trigger refresh in UI
   }
 
   getTreeItem(element: AutoGitFetchItem): vscode.TreeItem {
@@ -184,67 +187,47 @@ class AutoGitFetchViewProvider
   }
 
   getChildren(): AutoGitFetchItem[] {
-    return [
-      new AutoGitFetchItem("Toggle Auto Git Fetch", "extension.toggleGitFetch"),
-      new AutoGitFetchItem(
-        `Auto Git Fetch Enabled: ${vscode.workspace
-          .getConfiguration()
-          .get<boolean>("autoGitFetch.enabled")}`,
-        ""
-      ),
-      new AutoGitFetchItem(
-        `Interval: ${vscode.workspace
-          .getConfiguration()
-          .get<number>("autoGitFetch.interval")} seconds`,
-        "extension.editInterval"
-      ),
-      new AutoGitFetchItem(
-        `Folder Path: ${
-          vscode.workspace
-            .getConfiguration()
-            .get<string>("autoGitFetch.folderPath") || "Not set"
-        }`,
-        "extension.editFolderPath"
-      ),
-    ];
+    return this.treeItems;
+  }
+
+  // Getters for configuration values
+  getEnabled(): boolean {
+    return (
+      vscode.workspace
+        .getConfiguration()
+        .get<boolean>("autoGitFetch.enabled") || false
+    );
+  }
+
+  getInterval(): number {
+    return (
+      vscode.workspace
+        .getConfiguration()
+        .get<number>("autoGitFetch.interval") || 600
+    ); // Default to 600 seconds
+  }
+
+  getFolderPath(): string {
+    return (
+      vscode.workspace
+        .getConfiguration()
+        .get<string>("autoGitFetch.folderPath") || ""
+    );
   }
 }
 
 class AutoGitFetchItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
-    public readonly commandId: string
+    public readonly commandId?: string
   ) {
-    super(label, vscode.TreeItemCollapsibleState.None);
-
+    super(label);
     if (commandId) {
       this.command = {
         command: commandId,
         title: label,
-        tooltip: label,
       };
     }
-
-    // Add icons based on the label
-    this.iconPath = this.getIconForLabel(label);
+    this.command = this.command || undefined; // Explicitly set command to undefined if there's no commandId
   }
-
-  // Function to return appropriate icon for each label
-  private getIconForLabel(
-    label: string
-  ): { light: string; dark: string } | vscode.ThemeIcon {
-    if (label.includes("Toggle Auto Git Fetch")) {
-      return new vscode.ThemeIcon("sync"); // Built-in icon for toggle
-    } else if (label.includes("Interval")) {
-      return new vscode.ThemeIcon("clock"); // Built-in icon for interval
-    } else if (label.includes("Folder Path")) {
-      return new vscode.ThemeIcon("file-directory"); // Built-in icon for folder
-    } else {
-      return new vscode.ThemeIcon("gear"); // Default icon (settings)
-    }
-  }
-}
-
-export function deactivate() {
-  // Cleanup code when the extension is deactivated
 }
