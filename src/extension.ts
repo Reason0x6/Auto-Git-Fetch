@@ -31,7 +31,13 @@ export function activate(context: vscode.ExtensionContext) {
         );
       autoGitFetchViewProvider.refresh(); // Refresh the view
       vscode.window.showInformationMessage(
-        `Auto Git Fetch is now ${isEnabled ? "enabled" : "disabled"}.`
+        `Auto Git Fetch is now ${
+          vscode.workspace
+            .getConfiguration()
+            .get<boolean>("autoGitFetch.enabled")
+            ? "enabled"
+            : "disabled"
+        }.`
       );
     }
   );
