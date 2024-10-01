@@ -118,6 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(toggleGitFetch, editInterval, editFolderPath);
+  autoGitFetchViewProvider.refresh();
 }
 
 // Get folder path from settings
